@@ -60,7 +60,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            dpToPx(100f),
+            dpToPx(95f),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             getFlags(isLocked),
             PixelFormat.TRANSLUCENT
@@ -105,26 +105,21 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
                 CHANNEL_ID,
                 "شريط iOS Dock",
                 NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "إشعار استقرار شريط iOS Dock في الخلفية"
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
+            )
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
     private fun createNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
+            this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("iOS Dock يعمل الآن")
-            .setContentText("الشريط الشفاف العائم نشط ومستقر")
+            .setContentText("الشريط الشفاف نشط بالم خلفية")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -133,22 +128,11 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
     }
 
     private fun getFlags(isLocked: Boolean): Int {
-        val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
-        val blockSearch = prefs.getBoolean("dock_block_search", false)
-
         return if (isLocked) {
-            if (blockSearch) {
-                // عند حجب شريط البحث
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-            } else {
-                // تمرير اللمس كاملاً لأيقونات النظام خلف الشريط
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-            }
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -203,29 +187,21 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             }
             ACTION_UPDATE_LOCK_STATE -> {
                 params.flags = getFlags(isLocked)
-                overlayView?.visibility = View.VISIBLE
-                overlayView?.setContent {
-                    IosStyleEmptyDock()
-                }
                 try {
                     windowManager.updateViewLayout(overlayView, params)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
-            ACTION_COVER_SEARCH -> {
-                val searchYPx = dpToPx(15f)
-                params.y = searchYPx
-                prefs.edit().putInt("dock_y_position", searchYPx).apply()
-                overlayView?.visibility = View.VISIBLE
+            ACTION_RESET_POSITION -> {
+                val defaultYPx = dpToPx(35f)
+                params.y = defaultYPx
+                prefs.edit().putInt("dock_y_position", defaultYPx).apply()
                 try {
                     windowManager.updateViewLayout(overlayView, params)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-            }
-            else -> {
-                overlayView?.visibility = View.VISIBLE
             }
         }
         return START_STICKY
@@ -253,6 +229,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         const val CHANNEL_ID = "ios_dock_foreground_channel"
         const val NOTIFICATION_ID = 1001
         const val ACTION_UPDATE_LOCK_STATE = "com.example.iosdock.UPDATE_LOCK_STATE"
-        const val ACTION_COVER_SEARCH = "com.example.iosdock.COVER_SEARCH"
+        const val ACTION_RESET_POSITION = "com.example.iosdock.RESET_POSITION"
     }
 }
