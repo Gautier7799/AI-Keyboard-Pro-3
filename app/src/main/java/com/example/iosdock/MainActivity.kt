@@ -102,6 +102,7 @@ fun SettingsScreen() {
 
     var isServiceRunning by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(prefs.getBoolean("dock_is_locked", true)) }
+    var blockSearch by remember { mutableStateOf(prefs.getBoolean("dock_block_search", false)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -223,7 +224,7 @@ fun SettingsScreen() {
                 }
             }
 
-            // Card 4: Control & Lock
+            // Card 4: Controls & Lock
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 modifier = Modifier.fillMaxWidth()
@@ -275,6 +276,34 @@ fun SettingsScreen() {
                             onCheckedChange = { checked ->
                                 isLocked = checked
                                 prefs.edit().putBoolean("dock_is_locked", checked).apply()
+                                val intent = Intent(context, DockOverlayService::class.java).apply {
+                                    action = DockOverlayService.ACTION_UPDATE_LOCK_STATE
+                                }
+                                context.startService(intent)
+                            }
+                        )
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFF2C2C2E))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("تغطية وحجب شريط بحث Google", color = Color.White, fontSize = 14.sp)
+                            Text(
+                                if (blockSearch) "مُفعل: يتم حجب شريط البحث" else "غير مفعل: تمرير كامل للمس للأيقونات",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Switch(
+                            checked = blockSearch,
+                            onCheckedChange = { checked ->
+                                blockSearch = checked
+                                prefs.edit().putBoolean("dock_block_search", checked).apply()
                                 val intent = Intent(context, DockOverlayService::class.java).apply {
                                     action = DockOverlayService.ACTION_UPDATE_LOCK_STATE
                                 }
