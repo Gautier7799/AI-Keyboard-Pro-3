@@ -102,7 +102,6 @@ fun SettingsScreen() {
 
     var isServiceRunning by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(prefs.getBoolean("dock_is_locked", true)) }
-    var blockSearch by remember { mutableStateOf(prefs.getBoolean("dock_block_search", false)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -224,7 +223,7 @@ fun SettingsScreen() {
                 }
             }
 
-            // Card 4: Control Dock & Cover Search
+            // Card 4: Control & Lock
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 modifier = Modifier.fillMaxWidth()
@@ -264,18 +263,18 @@ fun SettingsScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("تغطية وحجب شريط بحث Google", color = Color.White, fontSize = 14.sp)
+                            Text("قفل موضع الشريط (Lock Position)", color = Color.White, fontSize = 14.sp)
                             Text(
-                                if (blockSearch) "تم حجب شريط البحث وتوفير المساحة" else "يمكنك التفاعل مع شريط البحث",
+                                if (isLocked) "الموضع مثبت واللمس ينفذ لأيقونات النظام" else "يمكنك سحب الشريط لمكانه الآن",
                                 color = Color.Gray,
                                 fontSize = 12.sp
                             )
                         }
                         Switch(
-                            checked = blockSearch,
+                            checked = isLocked,
                             onCheckedChange = { checked ->
-                                blockSearch = checked
-                                prefs.edit().putBoolean("dock_block_search", checked).apply()
+                                isLocked = checked
+                                prefs.edit().putBoolean("dock_is_locked", checked).apply()
                                 val intent = Intent(context, DockOverlayService::class.java).apply {
                                     action = DockOverlayService.ACTION_UPDATE_LOCK_STATE
                                 }
