@@ -1,9 +1,12 @@
 package com.example.iosdock
 
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.TextUtils
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -17,9 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 class MainActivity : ComponentActivity() {
 
@@ -38,12 +44,49 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+fun isAccessibilityServiceEnabled(context: Context, serviceClass: Class<*>): Boolean {
+    val expectedComponentName = ComponentName(context, serviceClass)
+    val enabledServicesSetting = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    val stringSplitter = TextUtils.SimpleStringSplitter(':')
+    stringSplitter.setString(enabledServicesSetting)
+    while (stringSplitter.hasNext()) {
+        val componentNameString = stringSplitter.next()
+        val enabledComponentName = ComponentName.unflattenFromString(componentNameString)
+        if (enabledComponentName != null && enabledComponentName == expectedComponentName) {
+            return true
+        }
+    }
+    return false
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var hasAccessibilityPermission by remember {
+        mutableStateOf(isAccessibilityServiceEnabled(context, DockAccessibilityService::class.java))
+    }
     var isServiceRunning by remember { mutableStateOf(false) }
+
+    // الكشف التلقائي المباشر عن حالة الصلاحيات فور الرجوع للتطبيق
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasOverlayPermission = Settings.canDrawOverlays(context)
+                hasAccessibilityPermission = isAccessibilityServiceEnabled(context, DockAccessibilityService::class.java)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -69,17 +112,18 @@ fun SettingsScreen() {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "1. إذن الظهور فوق التطبيقات (Superposition)",
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = if (hasOverlayPermission) "الحالة: مفعل ✔" else "الحالة: غير مفعل ✖",
-                        color = if (hasOverlayPermission) Color.Green else Color.Red,
-                        fontSize = 14.sp
+                        color = if (hasOverlayPermission) Color(0xFF34C759) else Color(0xFFFF3B30),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = {
                             val intent = Intent(
@@ -88,9 +132,12 @@ fun SettingsScreen() {
                             )
                             context.startActivity(intent)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (hasOverlayPermission) Color(0xFF2C2C2E) else Color(0xFF007AFF)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("منح إذن Superposition")
+                        Text(if (hasOverlayPermission) "تم منح الإذن بنجاح" else "تفعيل إذن Superposition الآن")
                     }
                 }
             }
@@ -103,25 +150,29 @@ fun SettingsScreen() {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "2. إذن إمكانية الوصول (Accessibility)",
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "فتح إعدادات الوصول بالنظام",
-                        color = Color.Gray,
-                        fontSize = 14.sp
+                        text = if (hasAccessibilityPermission) "الحالة: مفعل ✔" else "الحالة: غير مفعل ✖",
+                        color = if (hasAccessibilityPermission) Color(0xFF34C759) else Color(0xFFFF3B30),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = {
                             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                             context.startActivity(intent)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (hasAccessibilityPermission) Color(0xFF2C2C2E) else Color(0xFF34C759)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("فتح إعدادات Accessibility")
+                        Text(if (hasAccessibilityPermission) "تم منح الإذن بنجاح" else "فتح إعدادات Accessibility بالنظام")
                     }
                 }
             }
@@ -134,7 +185,7 @@ fun SettingsScreen() {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "3. تشغيل / إيقاف شريط Dock الشفاف",
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -144,7 +195,7 @@ fun SettingsScreen() {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("تفعيل الشريط العائم (بدون أيقونات)", color = Color.White)
+                        Text("تفعيل الشريط العائم (بدون أيقونات)", color = Color.White, fontSize = 14.sp)
                         Switch(
                             checked = isServiceRunning,
                             onCheckedChange = { checked ->
