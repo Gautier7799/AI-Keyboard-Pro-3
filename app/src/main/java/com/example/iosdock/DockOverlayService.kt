@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -51,7 +52,8 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
 
-        val defaultYPx = dpToPx(35f)
+        // الارتفاع الافتراضي ليحيط بالأيقونات الأربعة في Pixel 8
+        val defaultYPx = dpToPx(105f)
         val savedY = prefs.getInt("dock_y_position", defaultYPx)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
 
@@ -70,6 +72,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         }
 
         overlayView = ComposeView(this).apply {
+            setBackgroundColor(AndroidColor.TRANSPARENT)
             setViewTreeLifecycleOwner(this@DockOverlayService)
             setViewTreeSavedStateRegistryOwner(this@DockOverlayService)
             setViewTreeViewModelStoreOwner(this@DockOverlayService)
@@ -119,7 +122,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("iOS Dock يعمل الآن")
-            .setContentText("الشريط الشفاف نشط بالم خلفية")
+            .setContentText("الشريط الشفاف نشط في الخلفية")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -180,10 +183,14 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
         when (intent?.action) {
             DockAccessibilityService.ACTION_SHOW_DOCK -> {
-                overlayView?.visibility = View.VISIBLE
+                if (overlayView?.visibility != View.VISIBLE) {
+                    overlayView?.visibility = View.VISIBLE
+                }
             }
             DockAccessibilityService.ACTION_HIDE_DOCK -> {
-                overlayView?.visibility = View.GONE
+                if (overlayView?.visibility != View.GONE) {
+                    overlayView?.visibility = View.GONE
+                }
             }
             ACTION_UPDATE_LOCK_STATE -> {
                 params.flags = getFlags(isLocked)
@@ -194,9 +201,10 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
                 }
             }
             ACTION_RESET_POSITION -> {
-                val defaultYPx = dpToPx(35f)
+                val defaultYPx = dpToPx(105f)
                 params.y = defaultYPx
                 prefs.edit().putInt("dock_y_position", defaultYPx).apply()
+                overlayView?.visibility = View.VISIBLE
                 try {
                     windowManager.updateViewLayout(overlayView, params)
                 } catch (e: Exception) {
