@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
@@ -34,6 +36,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
+        // إعدادات النافذة العائمة
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -44,7 +47,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 50
+            y = 120 // المسافة الابتدائية من الأسفل
         }
 
         overlayView = ComposeView(this).apply {
@@ -52,6 +55,40 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             setViewTreeSavedStateRegistryOwner(this@DockOverlayService)
             setContent {
                 IosStyleEmptyDock()
+            }
+        }
+
+        // إمكانية تحريك الـ Dock باللمس والسحب
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+
+        overlayView?.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = params.x
+                    initialY = params.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = (event.rawX - initialTouchX).toInt()
+                    val deltaY = (event.rawY - initialTouchY).toInt()
+
+                    params.x = initialX + deltaX
+                    // لأن Gravity.BOTTOM يعامل Y بالعكس (زيادة Y تدفع للأعلى)
+                    params.y = initialY - deltaY
+
+                    try {
+                        windowManager.updateViewLayout(overlayView, params)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    true
+                }
+                else -> false
             }
         }
 
