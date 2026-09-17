@@ -48,7 +48,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val savedY = prefs.getInt("dock_y_position", 120)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
 
-        // تفعيل الإشعارات والخدمة الأمامية لضمان الاستقرار وعدم إغلاق أندرويد للتطبيق
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
 
