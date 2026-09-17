@@ -1,6 +1,7 @@
 package com.example.iosdock
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
@@ -22,6 +23,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: ComposeView? = null
+    private lateinit var params: WindowManager.LayoutParams
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
@@ -35,19 +37,20 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
 
-        // إعدادات النافذة العائمة
-        val params = WindowManager.LayoutParams(
+        val savedY = prefs.getInt("dock_y_position", 120)
+        val isLocked = prefs.getBoolean("dock_is_locked", true)
+
+        params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            getFlags(isLocked),
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 120 // المسافة الابتدائية من الأسفل
+            y = savedY
         }
 
         overlayView = ComposeView(this).apply {
@@ -58,39 +61,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             }
         }
 
-        // إمكانية تحريك الـ Dock باللمس والسحب
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-
-        overlayView?.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = params.x
-                    initialY = params.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val deltaX = (event.rawX - initialTouchX).toInt()
-                    val deltaY = (event.rawY - initialTouchY).toInt()
-
-                    params.x = initialX + deltaX
-                    // لأن Gravity.BOTTOM يعامل Y بالعكس (زيادة Y تدفع للأعلى)
-                    params.y = initialY - deltaY
-
-                    try {
-                        windowManager.updateViewLayout(overlayView, params)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                    true
-                }
-                else -> false
-            }
-        }
+        setupTouchListener(prefs)
 
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
@@ -100,6 +71,76 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun getFlags(isLocked: Boolean): Int {
+        return if (isLocked) {
+            // عند القفل: تمكين النفاذ الكامل للمس لأيقونات النظام خلف/فوق الشريط
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        } else {
+            // عند تعديل الموضع: السماح بالسحب والتحريك
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        }
+    }
+
+    private fun setupTouchListener(prefs: android.content.SharedPreferences) {
+        var initialY = 0
+        var initialTouchY = 0f
+
+        overlayView?.setOnTouchListener { _, event ->
+            val isLocked = prefs.getBoolean("dock_is_locked", true)
+            if (isLocked) return@setOnTouchListener false
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialY = params.y
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaY = (event.rawY - initialTouchY).toInt()
+                    params.y = initialY - deltaY
+                    try {
+                        windowManager.updateViewLayout(overlayView, params)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    // حفظ الموضع بعد السحب
+                    prefs.edit().putInt("dock_y_position", params.y).apply()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            DockAccessibilityService.ACTION_SHOW_DOCK -> {
+                overlayView?.visibility = View.VISIBLE
+            }
+            DockAccessibilityService.ACTION_HIDE_DOCK -> {
+                overlayView?.visibility = View.GONE
+            }
+            ACTION_UPDATE_LOCK_STATE -> {
+                val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
+                val isLocked = prefs.getBoolean("dock_is_locked", true)
+                params.flags = getFlags(isLocked)
+                try {
+                    windowManager.updateViewLayout(overlayView, params)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -118,4 +159,8 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_UPDATE_LOCK_STATE = "com.example.iosdock.UPDATE_LOCK_STATE"
+    }
 }
