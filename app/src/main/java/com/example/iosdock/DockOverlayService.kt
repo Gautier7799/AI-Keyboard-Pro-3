@@ -133,11 +133,22 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
     }
 
     private fun getFlags(isLocked: Boolean): Int {
+        val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
+        val blockSearch = prefs.getBoolean("dock_block_search", false)
+
         return if (isLocked) {
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+            if (blockSearch) {
+                // عند حجب شريط البحث
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+            } else {
+                // تمرير اللمس كاملاً لأيقونات النظام خلف الشريط
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+            }
         } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -203,7 +214,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
                 }
             }
             ACTION_COVER_SEARCH -> {
-                val searchYPx = dpToPx(35f)
+                val searchYPx = dpToPx(15f)
                 params.y = searchYPx
                 prefs.edit().putInt("dock_y_position", searchYPx).apply()
                 overlayView?.visibility = View.VISIBLE
