@@ -54,7 +54,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         val defaultYPx = dpToPx(35f)
         val savedY = prefs.getInt("dock_y_position", defaultYPx)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
-        val showGemini = prefs.getBoolean("show_gemini_icon", true)
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
@@ -63,7 +62,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             WindowManager.LayoutParams.MATCH_PARENT,
             dpToPx(100f),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            getFlags(isLocked, showGemini),
+            getFlags(isLocked),
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -75,10 +74,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             setViewTreeSavedStateRegistryOwner(this@DockOverlayService)
             setViewTreeViewModelStoreOwner(this@DockOverlayService)
             setContent {
-                IosStyleEmptyDock(
-                    showGeminiIcon = showGemini,
-                    onGeminiClick = { launchGemini(this@DockOverlayService) }
-                )
+                IosStyleEmptyDock()
             }
             visibility = View.VISIBLE
         }
@@ -92,30 +88,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             windowManager.addView(overlayView, params)
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-    }
-
-    private fun launchGemini(context: Context) {
-        try {
-            val intent = Intent(Intent.ACTION_VOICE_COMMAND).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            try {
-                val bardIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard")
-                if (bardIntent != null) {
-                    bardIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(bardIntent)
-                } else {
-                    val assistIntent = Intent(Intent.ACTION_ASSIST).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(assistIntent)
-                }
-            } catch (ex: Exception) {
-                ex.printStackTrace()
-            }
         }
     }
 
@@ -152,7 +124,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("iOS Dock يعمل الآن")
-            .setContentText("مُساعد Gemini والشريط الشفاف أنشطاء")
+            .setContentText("الشريط الشفاف العائم نشط ومستقر")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -160,18 +132,12 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             .build()
     }
 
-    private fun getFlags(isLocked: Boolean, showGemini: Boolean): Int {
+    private fun getFlags(isLocked: Boolean): Int {
         return if (isLocked) {
-            if (showGemini) {
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-            } else {
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-            }
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -216,7 +182,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
-        val showGemini = prefs.getBoolean("show_gemini_icon", true)
 
         when (intent?.action) {
             DockAccessibilityService.ACTION_SHOW_DOCK -> {
@@ -226,13 +191,10 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
                 overlayView?.visibility = View.GONE
             }
             ACTION_UPDATE_LOCK_STATE -> {
-                params.flags = getFlags(isLocked, showGemini)
+                params.flags = getFlags(isLocked)
                 overlayView?.visibility = View.VISIBLE
                 overlayView?.setContent {
-                    IosStyleEmptyDock(
-                        showGeminiIcon = showGemini,
-                        onGeminiClick = { launchGemini(this@DockOverlayService) }
-                    )
+                    IosStyleEmptyDock()
                 }
                 try {
                     windowManager.updateViewLayout(overlayView, params)
