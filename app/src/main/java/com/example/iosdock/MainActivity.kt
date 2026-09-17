@@ -67,14 +67,15 @@ fun isAccessibilityServiceEnabled(context: Context, serviceClass: Class<*>): Boo
 fun SettingsScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val prefs = remember { context.getSharedPreferences("dock_prefs", Context.MODE_PRIVATE) }
 
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var hasAccessibilityPermission by remember {
         mutableStateOf(isAccessibilityServiceEnabled(context, DockAccessibilityService::class.java))
     }
     var isServiceRunning by remember { mutableStateOf(false) }
+    var isLocked by remember { mutableStateOf(prefs.getBoolean("dock_is_locked", true)) }
 
-    // الكشف التلقائي المباشر عن حالة الصلاحيات فور الرجوع للتطبيق
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -177,14 +178,14 @@ fun SettingsScreen() {
                 }
             }
 
-            // Card 3: Toggle Service
+            // Card 3: Toggle Service & Lock Position
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "3. تشغيل / إيقاف شريط Dock الشفاف",
+                        text = "3. التحكم بشريط iOS Dock",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -195,7 +196,7 @@ fun SettingsScreen() {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("تفعيل الشريط العائم (بدون أيقونات)", color = Color.White, fontSize = 14.sp)
+                        Text("تشغيل الشريط العائم", color = Color.White, fontSize = 14.sp)
                         Switch(
                             checked = isServiceRunning,
                             onCheckedChange = { checked ->
@@ -214,6 +215,34 @@ fun SettingsScreen() {
                                         context.stopService(serviceIntent)
                                     }
                                 }
+                            }
+                        )
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFF2C2C2E))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("قفل موضع الشريط (Lock Position)", color = Color.White, fontSize = 14.sp)
+                            Text(
+                                text = if (isLocked) "الموضع مفيّث وتعمل لمسات النظام خلفه" else "يمكنك سحب الشريط لمكانه الآن",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Switch(
+                            checked = isLocked,
+                            onCheckedChange = { checked ->
+                                isLocked = checked
+                                prefs.edit().putBoolean("dock_is_locked", checked).apply()
+                                val intent = Intent(context, DockOverlayService::class.java).apply {
+                                    action = DockOverlayService.ACTION_UPDATE_LOCK_STATE
+                                }
+                                context.startService(intent)
                             }
                         )
                     }
