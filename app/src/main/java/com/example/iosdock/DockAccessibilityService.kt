@@ -7,13 +7,6 @@ import android.view.accessibility.AccessibilityEvent
 
 class DockAccessibilityService : AccessibilityService() {
 
-    private val knownHomePackages = setOf(
-        "com.google.android.apps.nexuslauncher", // Pixel Launcher الشاشة الرئيسية فقط
-        "com.android.launcher3",
-        "com.google.android.launcher",
-        "com.sec.android.app.launcher",
-        "com.miui.home"
-    )
     private var homePackageName: String? = null
 
     override fun onServiceConnected() {
@@ -29,7 +22,7 @@ class DockAccessibilityService : AccessibilityService() {
             val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
             homePackageName = resolveInfo?.activityInfo?.packageName
         } catch (e: Exception) {
-            e.printStackTrace()
+            homePackageName = "com.google.android.apps.nexuslauncher"
         }
     }
 
@@ -43,8 +36,8 @@ class DockAccessibilityService : AccessibilityService() {
                 updateHomePackageName()
             }
 
-            // إظهار الشريط حصرياً داخل الشاشة الرئيسية وإخفاؤه في الشاشات الأخيرة والتطبيقات
-            val isHome = (packageName == homePackageName) || knownHomePackages.contains(packageName)
+            // يظهر الشريط حصرياً وفقط في الشاشة الرئيسية لـ Pixel Launcher
+            val isHome = (packageName == homePackageName) || (packageName == "com.google.android.apps.nexuslauncher")
 
             val serviceIntent = Intent(this, DockOverlayService::class.java).apply {
                 action = if (isHome) ACTION_SHOW_DOCK else ACTION_HIDE_DOCK
