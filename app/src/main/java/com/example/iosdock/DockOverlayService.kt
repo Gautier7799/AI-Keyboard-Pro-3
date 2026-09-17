@@ -52,8 +52,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
 
-        // الارتفاع الافتراضي ليحيط بالأيقونات الأربعة في Pixel 8
-        val defaultYPx = dpToPx(105f)
+        val defaultYPx = dpToPx(35f)
         val savedY = prefs.getInt("dock_y_position", defaultYPx)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
 
@@ -79,7 +78,8 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             setContent {
                 IosStyleEmptyDock()
             }
-            visibility = View.VISIBLE
+            // البدء بحالة مخفية تماماً لمنع التسرب لصفحة الإعدادات
+            visibility = View.GONE
         }
 
         setupTouchListener(prefs)
@@ -183,14 +183,10 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
         when (intent?.action) {
             DockAccessibilityService.ACTION_SHOW_DOCK -> {
-                if (overlayView?.visibility != View.VISIBLE) {
-                    overlayView?.visibility = View.VISIBLE
-                }
+                overlayView?.visibility = View.VISIBLE
             }
             DockAccessibilityService.ACTION_HIDE_DOCK -> {
-                if (overlayView?.visibility != View.GONE) {
-                    overlayView?.visibility = View.GONE
-                }
+                overlayView?.visibility = View.GONE
             }
             ACTION_UPDATE_LOCK_STATE -> {
                 params.flags = getFlags(isLocked)
@@ -201,10 +197,9 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
                 }
             }
             ACTION_RESET_POSITION -> {
-                val defaultYPx = dpToPx(105f)
+                val defaultYPx = dpToPx(35f)
                 params.y = defaultYPx
                 prefs.edit().putInt("dock_y_position", defaultYPx).apply()
-                overlayView?.visibility = View.VISIBLE
                 try {
                     windowManager.updateViewLayout(overlayView, params)
                 } catch (e: Exception) {
