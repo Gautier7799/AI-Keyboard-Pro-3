@@ -102,6 +102,7 @@ fun SettingsScreen() {
 
     var isServiceRunning by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(prefs.getBoolean("dock_is_locked", true)) }
+    var blockSearch by remember { mutableStateOf(prefs.getBoolean("dock_block_search", false)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -194,7 +195,7 @@ fun SettingsScreen() {
                 }
             }
 
-            // Card 3: Notification Permission
+            // Card 3: Notifications
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 modifier = Modifier.fillMaxWidth()
@@ -223,7 +224,7 @@ fun SettingsScreen() {
                 }
             }
 
-            // Card 4: Control Dock & Lock
+            // Card 4: Control Dock & Cover Search
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 modifier = Modifier.fillMaxWidth()
@@ -263,24 +264,39 @@ fun SettingsScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("قفل موضع الشريط (Lock Position)", color = Color.White, fontSize = 14.sp)
+                            Text("تغطية وحجب شريط بحث Google", color = Color.White, fontSize = 14.sp)
                             Text(
-                                if (isLocked) "الموضع مثبت واللمس ينفذ لأيقونات النظام" else "يمكنك سحب الشريط لمكانه الآن",
+                                if (blockSearch) "تم حجب شريط البحث وتوفير المساحة" else "يمكنك التفاعل مع شريط البحث",
                                 color = Color.Gray,
                                 fontSize = 12.sp
                             )
                         }
                         Switch(
-                            checked = isLocked,
+                            checked = blockSearch,
                             onCheckedChange = { checked ->
-                                isLocked = checked
-                                prefs.edit().putBoolean("dock_is_locked", checked).apply()
+                                blockSearch = checked
+                                prefs.edit().putBoolean("dock_block_search", checked).apply()
                                 val intent = Intent(context, DockOverlayService::class.java).apply {
                                     action = DockOverlayService.ACTION_UPDATE_LOCK_STATE
                                 }
                                 context.startService(intent)
                             }
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            val intent = Intent(context, DockOverlayService::class.java).apply {
+                                action = DockOverlayService.ACTION_COVER_SEARCH
+                            }
+                            context.startService(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("تثبيت الشريط فوق منطقة شريط البحث تلقائياً")
                     }
                 }
             }
