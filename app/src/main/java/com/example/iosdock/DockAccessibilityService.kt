@@ -31,13 +31,20 @@ class DockAccessibilityService : AccessibilityService() {
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
+            val className = event.className?.toString() ?: ""
 
             if (homePackageName == null) {
                 updateHomePackageName()
             }
 
-            // يظهر الشريط حصرياً وفقط في الشاشة الرئيسية لـ Pixel Launcher
-            val isHome = (packageName == homePackageName) || (packageName == "com.google.android.apps.nexuslauncher")
+            // فحص واجهة التطبيقات الأخيرة (Overview/Recents) لإخفاء الشريط منها فوراً
+            val isRecentsView = className.contains("Recents", ignoreCase = true) ||
+                                className.contains("Overview", ignoreCase = true) ||
+                                className.contains("TaskSwitcher", ignoreCase = true)
+
+            // التأكد من التواجد في الشاشة الرئيسية فقط وليس في قائمة التنقل أو التطبيقات
+            val isLauncherPackage = (packageName == homePackageName) || (packageName == "com.google.android.apps.nexuslauncher")
+            val isHome = isLauncherPackage && !isRecentsView
 
             val serviceIntent = Intent(this, DockOverlayService::class.java).apply {
                 action = if (isHome) ACTION_SHOW_DOCK else ACTION_HIDE_DOCK
