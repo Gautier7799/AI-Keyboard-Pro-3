@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- الأذونات المطلوبة لضمان استقرار التطبيق والظهور فوق الشاشة -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
         android:label="iOS Dock"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.IOSDock">
 
         <activity
             android:name=".MainActivity"
@@ -20,11 +24,18 @@
             </intent-filter>
         </activity>
 
+        <!-- خدمة الشريط العائم كخدمة أمامية دائمة -->
         <service
             android:name=".DockOverlayService"
             android:enabled="true"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floating dock overlay service" />
+        </service>
 
+        <!-- خدمة الوصول للكشف عن الشاشة الرئيسية -->
         <service
             android:name=".DockAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
