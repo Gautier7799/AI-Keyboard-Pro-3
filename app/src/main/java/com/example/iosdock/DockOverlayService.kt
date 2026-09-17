@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -45,7 +46,8 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
 
-        val savedY = prefs.getInt("dock_y_position", 120)
+        val defaultYPx = dpToPx(50f)
+        val savedY = prefs.getInt("dock_y_position", defaultYPx)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
 
         createNotificationChannel()
@@ -53,7 +55,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            dpToPx(100f),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             getFlags(isLocked),
             PixelFormat.TRANSLUCENT
@@ -68,6 +70,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             setContent {
                 IosStyleEmptyDock()
             }
+            visibility = View.VISIBLE
         }
 
         setupTouchListener(prefs)
@@ -80,6 +83,14 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun dpToPx(dp: Float): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            dp,
+            resources.displayMetrics
+        ).toInt()
     }
 
     private fun createNotificationChannel() {
@@ -116,10 +127,20 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     private fun getFlags(isLocked: Boolean): Int {
+        val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
+        val blockSearch = prefs.getBoolean("dock_block_search", false)
+
         return if (isLocked) {
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            if (blockSearch) {
+                // منع التفاعل مع شريط البحث وحجبه
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            } else {
+                // تمرير اللمسات لأيقونات النظام خلف الشريط
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            }
         } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -178,6 +199,21 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                     e.printStackTrace()
                 }
             }
+            ACTION_COVER_SEARCH -> {
+                val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
+                val searchYPx = dpToPx(35f)
+                params.y = searchYPx
+                prefs.edit().putInt("dock_y_position", searchYPx).apply()
+                overlayView?.visibility = View.VISIBLE
+                try {
+                    windowManager.updateViewLayout(overlayView, params)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            else -> {
+                overlayView?.visibility = View.VISIBLE
+            }
         }
         return START_STICKY
     }
@@ -203,5 +239,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         const val CHANNEL_ID = "ios_dock_foreground_channel"
         const val NOTIFICATION_ID = 1001
         const val ACTION_UPDATE_LOCK_STATE = "com.example.iosdock.UPDATE_LOCK_STATE"
+        const val ACTION_COVER_SEARCH = "com.example.iosdock.COVER_SEARCH"
     }
 }
