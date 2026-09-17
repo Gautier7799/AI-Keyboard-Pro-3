@@ -7,6 +7,13 @@ import android.view.accessibility.AccessibilityEvent
 
 class DockAccessibilityService : AccessibilityService() {
 
+    private val knownHomePackages = setOf(
+        "com.google.android.apps.nexuslauncher", // Pixel Launcher الخاص بهاتفك
+        "com.android.launcher3",
+        "com.google.android.launcher",
+        "com.example.iosdock",                    // إظهار الشريط فوراً داخل التطبيق للسيادة والتأكد
+        "com.android.systemui"                   // واجهة النظام العائمة
+    )
     private var homePackageName: String? = null
 
     override fun onServiceConnected() {
@@ -29,15 +36,16 @@ class DockAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+        val eventType = event.eventType
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
 
             if (homePackageName == null) {
                 updateHomePackageName()
             }
 
-            // تحقق هل الواجهة الحالية هي الشاشة الرئيسية
-            val isHome = (packageName == homePackageName)
+            // إظهار الشريط عند التواجد في الشاشة الرئيسية أو داخل التطبيق
+            val isHome = (packageName == homePackageName) || knownHomePackages.contains(packageName)
 
             val serviceIntent = Intent(this, DockOverlayService::class.java).apply {
                 action = if (isHome) ACTION_SHOW_DOCK else ACTION_HIDE_DOCK
