@@ -1,14 +1,20 @@
 package com.example.iosdock
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.core.app.NotificationCompat
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -42,6 +48,10 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val savedY = prefs.getInt("dock_y_position", 120)
         val isLocked = prefs.getBoolean("dock_is_locked", true)
 
+        // تفعيل الإشعارات والخدمة الأمامية لضمان الاستقرار وعدم إغلاق أندرويد للتطبيق
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification())
+
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -73,14 +83,45 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         }
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "شريط iOS Dock",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "إشعار استقرار شريط iOS Dock في الخلفية"
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(): Notification {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("iOS Dock يعمل الآن")
+            .setContentText("الشريط العائم نشط ومستقر في الخلفية")
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+
     private fun getFlags(isLocked: Boolean): Int {
         return if (isLocked) {
-            // عند القفل: تمكين النفاذ الكامل للمس لأيقونات النظام خلف/فوق الشريط
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
         } else {
-            // عند تعديل الموضع: السماح بالسحب والتحريك
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
@@ -112,7 +153,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    // حفظ الموضع بعد السحب
                     prefs.edit().putInt("dock_y_position", params.y).apply()
                     true
                 }
@@ -161,6 +201,8 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        const val CHANNEL_ID = "ios_dock_foreground_channel"
+        const val NOTIFICATION_ID = 1001
         const val ACTION_UPDATE_LOCK_STATE = "com.example.iosdock.UPDATE_LOCK_STATE"
     }
 }
