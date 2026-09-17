@@ -14,15 +14,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -295,28 +291,5 @@ fun SettingsScreen() {
             Text("معاينة الشريط الشفاف (Sans Icon):", color = Color.Gray, fontSize = 13.sp)
             IosStyleEmptyDock()
         }
-    }
-}
-
-@Composable
-fun IosStyleEmptyDock(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(76.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color.White.copy(alpha = 0.18f))
-                .border(
-                    width = 1.5.dp,
-                    color = Color.White.copy(alpha = 0.40f),
-                    shape = RoundedCornerShape(32.dp)
-                )
-        )
     }
 }
