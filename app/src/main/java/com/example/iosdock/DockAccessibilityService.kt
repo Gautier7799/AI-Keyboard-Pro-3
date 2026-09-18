@@ -29,23 +29,21 @@ class DockAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
-        // الاستجابة فقط لتغير النوافذ الشاشة وتجاهل باقي اللمسات
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
         val eventPackage = event.packageName?.toString() ?: return
+        val className = event.className?.toString() ?: ""
 
-        // 1. القضاء على الحلقة المفرغة: تجاهل حزم النظام وتطبيقنا لتفادي الظهور والاختفاء المتكرر
-        val ignoredPackages = setOf(
-            packageName,                           // com.example.iosdock (تطبيقنا نفسه)
-            "com.android.systemui",               // شريط النظام العلوي والإشعارات
-            "android",                             // حوارات أندرويد
-            "com.google.android.inputmethod.latin", // لوحة المفاتيح
+        // 1. حظر حزم النظام الشفافة والإشعارات فقط (عدم حظر تطبيقنا لكي يختفي الشريط فور فتح الإعدادات)
+        val systemIgnoredPackages = setOf(
+            "com.android.systemui",                 // شريط الإشعارات واللوحة العلوية
+            "android",                              // الحوارات العائمة
+            "com.google.android.inputmethod.latin",  // لوحة المفاتيح
             "com.google.android.permissioncontroller"
         )
 
-        if (eventPackage in ignoredPackages) {
-            return // تجاهل الحدث تماماً والحفاظ على الحالة الحالية للشريط
+        if (eventPackage in systemIgnoredPackages) {
+            return // الحفاظ على الحالة الحالية دون تغيير
         }
 
         if (homePackageName == null) {
@@ -56,16 +54,18 @@ class DockAccessibilityService : AccessibilityService() {
         val isLauncherPackage = (eventPackage == homePackageName) || 
                                 (eventPackage == "com.google.android.apps.nexuslauncher")
 
-        val className = event.className?.toString() ?: ""
+        // 3. كشف درج التطبيقات (App Drawer) والشرائح الأخيرة (Recents / Overview) والبحث
+        val isDrawerOrRecents = className.contains("Recents", ignoreCase = true) ||
+                                className.contains("Overview", ignoreCase = true) ||
+                                className.contains("TaskSwitcher", ignoreCase = true) ||
+                                className.contains("AllApps", ignoreCase = true) ||
+                                className.contains("AppsContainer", ignoreCase = true) ||
+                                className.contains("Drawer", ignoreCase = true) ||
+                                className.contains("Search", ignoreCase = true)
 
-        // 3. استثناء واجهة التطبيقات الأخيرة Recents / Overview
-        val isRecentsView = className.contains("Recents", ignoreCase = true) ||
-                            className.contains("Overview", ignoreCase = true) ||
-                            className.contains("TaskSwitcher", ignoreCase = true)
+        // الظهور فقط في الشاشة الرئيسية الحقيقية
+        val isHome = isLauncherPackage && !isDrawerOrRecents
 
-        val isHome = isLauncherPackage && !isRecentsView
-
-        // 4. إرسال الأوامر فقط عند تغير الحالة الفعلية لمنع الثقل والـ Lag
         if (lastStateIsHome == isHome) return
         lastStateIsHome = isHome
 
