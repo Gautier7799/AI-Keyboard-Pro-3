@@ -78,7 +78,6 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             setContent {
                 IosStyleEmptyDock()
             }
-            // البدء بحالة مخفية تماماً لمنع التسرب لصفحة الإعدادات
             visibility = View.GONE
         }
 
@@ -183,10 +182,14 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
         when (intent?.action) {
             DockAccessibilityService.ACTION_SHOW_DOCK -> {
-                overlayView?.visibility = View.VISIBLE
+                if (overlayView?.visibility != View.VISIBLE) {
+                    overlayView?.visibility = View.VISIBLE
+                }
             }
             DockAccessibilityService.ACTION_HIDE_DOCK -> {
-                overlayView?.visibility = View.GONE
+                if (overlayView?.visibility != View.GONE) {
+                    overlayView?.visibility = View.GONE
+                }
             }
             ACTION_UPDATE_LOCK_STATE -> {
                 params.flags = getFlags(isLocked)
@@ -200,6 +203,9 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
                 val defaultYPx = dpToPx(35f)
                 params.y = defaultYPx
                 prefs.edit().putInt("dock_y_position", defaultYPx).apply()
+                if (overlayView?.visibility != View.VISIBLE) {
+                    overlayView?.visibility = View.VISIBLE
+                }
                 try {
                     windowManager.updateViewLayout(overlayView, params)
                 } catch (e: Exception) {
