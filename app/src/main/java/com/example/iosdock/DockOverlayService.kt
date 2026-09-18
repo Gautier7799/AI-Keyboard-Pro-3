@@ -131,11 +131,13 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
 
     private fun getFlags(isLocked: Boolean): Int {
         return if (isLocked) {
+            // تمرير جميع اللمسات للأيقونات الموجودة خلف الشريط مباشرة
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         } else {
+            // السماح بلمس الشريط لتحريك موقعه عند إلغاء القفل
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
