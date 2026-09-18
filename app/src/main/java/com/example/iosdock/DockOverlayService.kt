@@ -5,17 +5,16 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
-import android.util.TypedValue
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
@@ -40,6 +39,8 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
     private val store = ViewModelStore()
 
+    private var isExpanded by mutableStateOf(false)
+
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
     override val viewModelStore: ViewModelStore get() = store
@@ -50,24 +51,22 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
-
-        val defaultYPx = dpToPx(35f)
-        val savedY = prefs.getInt("dock_y_position", defaultYPx)
-        val isLocked = prefs.getBoolean("dock_is_locked", true)
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
 
         params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            dpToPx(95f),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            getFlags(isLocked),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = savedY
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            x = 0
+            y = 0
         }
 
         overlayView = ComposeView(this).apply {
@@ -76,12 +75,12 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
             setViewTreeSavedStateRegistryOwner(this@DockOverlayService)
             setViewTreeViewModelStoreOwner(this@DockOverlayService)
             setContent {
-                IosStyleEmptyDock()
+                SideEdgePanel(
+                    isExpanded = isExpanded,
+                    onToggleExpand = { isExpanded = !isExpanded }
+                )
             }
-            visibility = View.GONE
         }
-
-        setupTouchListener(prefs)
 
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
@@ -93,19 +92,11 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         }
     }
 
-    private fun dpToPx(dp: Float): Int {
-        return TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            dp,
-            resources.displayMetrics
-        ).toInt()
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "شريط iOS Dock",
+                "شريط Samsung Edge الجانبي",
                 NotificationManager.IMPORTANCE_LOW
             )
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
@@ -120,102 +111,13 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("iOS Dock يعمل الآن")
-            .setContentText("الشريط الشفاف نشط في الخلفية")
+            .setContentTitle("Widget Edge Panel نشط")
+            .setContentText("الشريط الجانبي يعمل في الخلفية")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-    }
-
-    private fun getFlags(isLocked: Boolean): Int {
-        return if (isLocked) {
-            // تمرير جميع اللمسات للأيقونات الموجودة خلف الشريط مباشرة
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        } else {
-            // السماح بلمس الشريط لتحريك موقعه عند إلغاء القفل
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        }
-    }
-
-    private fun setupTouchListener(prefs: android.content.SharedPreferences) {
-        var initialY = 0
-        var initialTouchY = 0f
-
-        overlayView?.setOnTouchListener { _, event ->
-            val isLocked = prefs.getBoolean("dock_is_locked", true)
-            if (isLocked) return@setOnTouchListener false
-
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialY = params.y
-                    initialTouchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val deltaY = (event.rawY - initialTouchY).toInt()
-                    params.y = initialY - deltaY
-                    try {
-                        windowManager.updateViewLayout(overlayView, params)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    prefs.edit().putInt("dock_y_position", params.y).apply()
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val prefs = getSharedPreferences("dock_prefs", Context.MODE_PRIVATE)
-        val isLocked = prefs.getBoolean("dock_is_locked", true)
-
-        when (intent?.action) {
-            DockAccessibilityService.ACTION_SHOW_DOCK -> {
-                if (overlayView?.visibility != View.VISIBLE) {
-                    overlayView?.visibility = View.VISIBLE
-                }
-            }
-            DockAccessibilityService.ACTION_HIDE_DOCK -> {
-                if (overlayView?.visibility != View.GONE) {
-                    overlayView?.visibility = View.GONE
-                }
-            }
-            ACTION_UPDATE_LOCK_STATE -> {
-                params.flags = getFlags(isLocked)
-                try {
-                    windowManager.updateViewLayout(overlayView, params)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-            ACTION_RESET_POSITION -> {
-                val defaultYPx = dpToPx(35f)
-                params.y = defaultYPx
-                prefs.edit().putInt("dock_y_position", defaultYPx).apply()
-                if (overlayView?.visibility != View.VISIBLE) {
-                    overlayView?.visibility = View.VISIBLE
-                }
-                try {
-                    windowManager.updateViewLayout(overlayView, params)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -237,9 +139,7 @@ class DockOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, V
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        const val CHANNEL_ID = "ios_dock_foreground_channel"
-        const val NOTIFICATION_ID = 1001
-        const val ACTION_UPDATE_LOCK_STATE = "com.example.iosdock.UPDATE_LOCK_STATE"
-        const val ACTION_RESET_POSITION = "com.example.iosdock.RESET_POSITION"
+        const val CHANNEL_ID = "edge_panel_foreground_channel"
+        const val NOTIFICATION_ID = 1002
     }
 }
